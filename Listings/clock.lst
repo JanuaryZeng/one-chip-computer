@@ -1,0 +1,732 @@
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE CLOCK
+OBJECT MODULE PLACED IN .\Objects\clock.obj
+COMPILER INVOKED BY: D:\Software\keil\C51\BIN\C51.EXE clock.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listin
+                    -gs\clock.lst) TABS(2) OBJECT(.\Objects\clock.obj)
+
+line level    source
+
+   1          #include<reg52.h>
+   2          typedef unsigned int u16;
+   3          typedef unsigned char u8;
+   4          
+   5          //¾ØÕó¼üÅÌÊä³ö ¶Ë¿Ú
+   6          #define GPIO_KEY P1
+   7          
+   8          unsigned char value;
+   9          //ÓÃÀ´´æ·Å¶ÁÈ¡µ½µÄ¼üÖµ
+  10          unsigned char KeyState; //¼ÇÂ¼°´¼üµÄ×´Ì¬£¬0Ã»ÓÐ£¬1ÓÐ
+  11          unsigned char jishiState = 0;//ÓÃÀ´ÅÐ¶ÏÊÇ·ñÔÚ¼ÆÊ±×´Ì¬
+  12          unsigned char daojishi = 0;//ÓÃÀ´ÅÐ¶ÏÊÇ·ñÔÚµ¹¼ÆÊ±×´Ì¬
+  13          
+  14          sbit led=P2^0;
+  15          sbit lsa=P2^2;
+  16          sbit lsb=P2^3;
+  17          sbit lsc=P2^4;
+  18          sbit beep=P1^5;
+  19          sbit k1=P3^1;
+  20          sbit k2=P3^0;
+  21          sbit k3=P3^2;
+  22          sbit k4=P3^3;
+  23          sbit dian=P0^7;
+  24          
+  25          //lsa lsb lsc ÓÃÀ´Ñ¡ÔñÏÔÊ¾µÄÊýÂë¹Ü
+  26           
+  27          u8 value,alarmexist=0;
+  28          u8 smgduan[]={0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,0x7f,0x67,0x00};//¶ÎÑ¡Âë£¬·Ö±ð¶ÔÓ¦0µ½ÎÞ
+  29          u16 cnt=0,i=0,j=0,flag=0,ji=0,zhizhen=0,time[8]={0,0,0,0,0,0,0,0};//Ö»ÓÃÊýÂë¹Ü0£¬1 3£¬4 6£¬7
+  30          u16 alarm[8]={0,0,0,0,0,0,1,0}, chucun[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  31          u16*p;
+  32          u8 ssec,sec,min;
+  33          u16 jisuan[8] = {0,0,0,0,0,0,0,0};
+  34          u8 tth0, ttl0;
+  35          u8 coun;
+  36           
+  37          void delay(u16 mmp);
+  38          void t0andt1init();
+  39          void addproct(int x);               
+  40          void addproca(int x);
+  41          void reduceproct(int x);
+  42          void reduceproca(int x);
+  43          void keyscan();
+  44          void jia();
+  45          void jian();
+  46          void KeyDown();    //¼ì²â°´¼üº¯Êý
+  47          void Delay10ms();   //ÑÓÊ±10ms
+  48          void clear();//°ÑÊ±¼äÇåÁã×¼±¸¼ÆÊ±
+  49          void DigDisplay();
+  50          void datapros();
+  51          u16 outputMS();
+  52          void outputSGM(u16 num);
+  53             
+  54          void main()
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 2   
+
+  55          {
+  56   1        led=0;
+  57   1        t0andt1init();
+  58   1        P0=0x00;
+  59   1        while(1)
+  60   1        {   
+  61   2            
+  62   2          if(time[0]==alarm[0]&&time[1]==alarm[1]&&time[3]==alarm[3]&&time[4]==alarm[4]&&time[6]==alarm[6]&&time[7
+             -]==alarm[7])//Âú×ãÌõ¼þ ·äÃùÆ÷ÒÔÒ»¶¨µÄÊ±¼ä¼ä¸ôÏì,Ö»µ½K4°´¼ü²¢ËÉ¿ª,´ËÊ±ÊýÂë¹ÜÈÎÈ»Õý³£ÏÔÊ¾µ±Ç°Ê±¼ä
+  63   2          {   
+  64   3            alarmexist=0;
+  65   3            while(k4)
+  66   3            {
+  67   4              beep=~beep;
+  68   4              delay(25);
+  69   4              beep=~beep;
+  70   4              delay(25);
+  71   4            }
+  72   3          }
+  73   2          keyscan();
+  74   2          
+  75   2          KeyDown();
+  76   2          if(KeyState == 1){
+  77   3            switch(value){
+  78   4              case 0:
+  79   4                TR0 = 0;
+  80   4                ssec = 0;
+  81   4                sec = 0;
+  82   4                min = 0;
+  83   4                zhizhen = 0;
+  84   4                datapros();
+  85   4                lsa=0;lsb=0;lsc=0;P0=smgduan[0];
+  86   4                break;
+  87   4              case 1:
+  88   4                jishiState = 1;
+  89   4                TR0 = 1;
+  90   4                while(1){
+  91   5                  datapros();
+  92   5                  DigDisplay(); 
+  93   5                  KeyDown();
+  94   5                  if(value == 2 && zhizhen < 15 && KeyState == 1){
+  95   6                    TR0 = 0;
+  96   6                    chucun[zhizhen] = outputMS();
+  97   6                    TR0 = 1;
+  98   6                    zhizhen++;
+  99   6                    KeyState = 0;
+ 100   6                  }
+ 101   5                  if(value == 3&& KeyState == 1){
+ 102   6                    jishiState = 0;
+ 103   6                    if(TR0 == 0)
+ 104   6                      TR0 = 1;
+ 105   6                    break;
+ 106   6                  }
+ 107   5                  if(value == 0&& KeyState == 1){
+ 108   6                    tth0 = TH0;
+ 109   6                    ttl0 = TL0;
+ 110   6                    TR0 = 0;
+ 111   6                    KeyState = 0;
+ 112   6                  }
+ 113   5                  if(value == 1&& KeyState == 1){
+ 114   6                    TH0 = tth0;
+ 115   6                    TL0 = ttl0;
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 3   
+
+ 116   6                    if(TR1 == 1){
+ 117   7                      TR1 = 0;
+ 118   7                    }
+ 119   6                    TR0 = 1;
+ 120   6                    KeyState = 0;
+ 121   6                  }
+ 122   5                  if(value == 4 && zhizhen>0&& KeyState == 1){
+ 123   6                    zhizhen--;
+ 124   6                    tth0 = TH0;
+ 125   6                    ttl0 = TL0;
+ 126   6                    if(TR0 != 0)
+ 127   6                    TR0=0;//²»ÔÚÏÔÊ¾µ±Ç°Ê±¼ä
+ 128   6                    outputSGM(chucun[zhizhen]);
+ 129   6                    KeyState = 0;
+ 130   6                  }
+ 131   5                }
+ 132   4                break;
+ 133   4              case 8:
+ 134   4                TR0 = 0;
+ 135   4                ssec = 3;
+ 136   4                sec = 0;
+ 137   4                min = 0;
+ 138   4                daojishi = 1;
+ 139   4                datapros();
+ 140   4                DigDisplay(); 
+ 141   4                while(1){
+ 142   5                  KeyState = 0;
+ 143   5                  datapros();
+ 144   5                  DigDisplay(); 
+ 145   5                  KeyDown();
+ 146   5                  if(KeyState == 1)
+ 147   5                  switch(value){
+ 148   6                    case 9:
+ 149   6                      if(min == 23)
+ 150   6                        min = 0;
+ 151   6                      else
+ 152   6                        min++;
+ 153   6                      break;
+ 154   6                    case 10:
+ 155   6                      if(sec == 23)
+ 156   6                        sec = 0;
+ 157   6                      else
+ 158   6                        sec++;
+ 159   6                      break;
+ 160   6                    case 11:
+ 161   6                      if(ssec == 23)
+ 162   6                        ssec = 0;
+ 163   6                      else
+ 164   6                        ssec++;
+ 165   6                      break;
+ 166   6                    case 13:
+ 167   6                      if(min == 0)
+ 168   6                        min = 23;
+ 169   6                      else
+ 170   6                        min--;
+ 171   6                      break;
+ 172   6                    case 14:
+ 173   6                      if(sec == 0)
+ 174   6                        sec = 23;
+ 175   6                      else
+ 176   6                        sec--;
+ 177   6                      break;
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 4   
+
+ 178   6                    case 15:
+ 179   6                      if(ssec == 0)
+ 180   6                        ssec = 23;
+ 181   6                      else
+ 182   6                        ssec--;
+ 183   6                      break;
+ 184   6                    case 12:
+ 185   6                      TR0 = 1;
+ 186   6                      while(TR0 == 1){
+ 187   7                        KeyState = 0;
+ 188   7                        KeyDown();
+ 189   7                        if(KeyState == 1){
+ 190   8                          TR0 = 0;
+ 191   8                          daojishi = 0;
+ 192   8                          break;
+ 193   8                        } 
+ 194   7                      }
+ 195   6                      ssec = 0;
+ 196   6                      sec = 0;
+ 197   6                      min = 0;
+ 198   6                      datapros();
+ 199   6                      DigDisplay(); 
+ 200   6                      break;
+ 201   6                    default:
+ 202   6                      break;
+ 203   6                  }
+ 204   5                  if(daojishi == 0){
+ 205   6                    KeyState = 0;
+ 206   6                    break;
+ 207   6                  }
+ 208   5                }
+ 209   4                while(TR0 == 1){
+ 210   5                  DigDisplay(); 
+ 211   5                  KeyDown();
+ 212   5                  if(KeyState == 1){
+ 213   6                    KeyState = 0;
+ 214   6                    break;
+ 215   6                  }
+ 216   5                }
+ 217   4                TR0 = 1;
+ 218   4                break;
+ 219   4              default:
+ 220   4                break;
+ 221   4            }
+ 222   3            KeyState = 0;
+ 223   3          }
+ 224   2        }
+ 225   1      }
+ 226          
+ 227          
+ 228          void delay(u16 mmp)
+ 229          {
+ 230   1        while(mmp--);
+ 231   1      }
+ 232          void t0andt1init()
+ 233          {
+ 234   1        TMOD=0x11;
+ 235   1        TH0=0xfc;
+ 236   1        TL0=0x67;//¸³¶¨Ê±Æ÷³õÊ¼Öµ£¬¶¨Ê±1ms
+ 237   1        TH1=0xfc;
+ 238   1        TL1=0x67;
+ 239   1        TR0=1;//T0¶¨Ê±Æ÷¿ªÊ¼¶¨Ê±
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 5   
+
+ 240   1        EA=1;
+ 241   1        ET0=1;
+ 242   1        ET1=1;  
+ 243   1      }
+ 244          void addproct(int x)    //¶Ô·Çµ÷Õû×´Ì¬ºÍµ÷Õû×´Ì¬µÄ¼Ó1´¦Àí(½öÓÃÓÚ¶Ôµ±Ç°Ê±¼ä)
+ 245          {
+ 246   1        if(x==0||x==3||x==6)
+ 247   1          if(time[x]==10)
+ 248   1          {
+ 249   2            time[x]=0;
+ 250   2            time[x+1]=time[x+1]+1;
+ 251   2            addproct(x+1);
+ 252   2          }
+ 253   1         
+ 254   1          if(x==1||x==4)
+ 255   1            if(time[x]==6)
+ 256   1          {
+ 257   2            time[x]=0;
+ 258   2            time[x+2]=time[x+2]+1;
+ 259   2            addproct(x+2);
+ 260   2          }
+ 261   1        if(time[6]==4&&time[7]==2)
+ 262   1          time[6]=time[7]=0;    
+ 263   1      }
+ 264          void addproca(int x)    //¶Ôµ÷Õû×´Ì¬µÄ¼Ó1´¦Àí(½öÓÃÓÚ¶ÔÄÖÖÓÊ±¼ä)
+ 265          {
+ 266   1        if(x==0||x==3||x==6)
+ 267   1          if(alarm[x]==10)
+ 268   1          {
+ 269   2            alarm[x]=0;
+ 270   2            alarm[x+1]=alarm[x+1]+1;
+ 271   2            addproca(x+1);
+ 272   2          }
+ 273   1         
+ 274   1          if(x==1||x==4)
+ 275   1            if(alarm[x]==6)
+ 276   1          {
+ 277   2            alarm[x]=0;
+ 278   2            alarm[x+2]=alarm[x+2]+1;
+ 279   2            addproca(x+2);
+ 280   2          }
+ 281   1        if(alarm[6]==4&&alarm[7]==2)
+ 282   1          alarm[6]=alarm[7]=0;    
+ 283   1      }
+ 284          void reduceproct(int x) // ¶Ôµ÷Õû×´Ì¬µÄ¼õ1´¦Àí(½öÓÃÓÚ¶Ôµ±Ç°Ê±¼ä)
+ 285          {
+ 286   1        if(time[0]==0&&time[1]==0&&time[3]==0&&time[4]==0&&time[6]==0&&time[7]==0)
+ 287   1        {
+ 288   2          time[0]=time[3]=9;
+ 289   2          time[1]=time[4]=5;
+ 290   2          time[6]=3;
+ 291   2          time[7]=2;
+ 292   2          return ;
+ 293   2        }
+ 294   1        if(x==0||x==3||x==6)
+ 295   1        {
+ 296   2          if(time[x]>=1)
+ 297   2            time[x]=time[x]-1;
+ 298   2          else
+ 299   2          {   
+ 300   3            if(time[7]==0&&x==6)
+ 301   3            {
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 6   
+
+ 302   4              time[6]=3;
+ 303   4              time[7]=2;
+ 304   4            }
+ 305   3            else
+ 306   3            {
+ 307   4              time[x]=9;
+ 308   4              reduceproct(x+1); 
+ 309   4            }
+ 310   3          }
+ 311   2          
+ 312   2        }
+ 313   1        else
+ 314   1        {
+ 315   2          if(time[x]>=1)
+ 316   2            time[x]=time[x]-1;
+ 317   2          else
+ 318   2          {
+ 319   3            time[x]=5;
+ 320   3            if(x!=7)
+ 321   3              reduceproct(x+2);
+ 322   3            else
+ 323   3              time[x]=1;
+ 324   3          }
+ 325   2        }
+ 326   1        
+ 327   1      }
+ 328          void reduceproca(int x) // ¶Ôµ÷Õû×´Ì¬µÄ¼õ1´¦Àí(½öÓÃÓÚ¶ÔÄÖÖÓÊ±¼ä)
+ 329          {
+ 330   1        if(alarm[0]==0&&alarm[1]==0&&alarm[3]==0&&alarm[4]==0&&alarm[6]==0&&alarm[7]==0)
+ 331   1        {
+ 332   2          alarm[0]=alarm[3]=9;
+ 333   2          alarm[1]=alarm[4]=5;
+ 334   2          alarm[6]=3;
+ 335   2          alarm[7]=2;
+ 336   2          return ;
+ 337   2        }
+ 338   1        if(x==0||x==3||x==6)
+ 339   1        {
+ 340   2          if(alarm[x]>=1)
+ 341   2            alarm[x]=alarm[x]-1;
+ 342   2          else
+ 343   2          {   
+ 344   3            if(alarm[7]==0&&x==6)
+ 345   3            {
+ 346   4              alarm[6]=3;
+ 347   4              alarm[7]=2;
+ 348   4            }
+ 349   3            else
+ 350   3            {
+ 351   4              alarm[x]=9;
+ 352   4              reduceproca(x+1); 
+ 353   4            }
+ 354   3          }
+ 355   2          
+ 356   2        }
+ 357   1        else
+ 358   1        {
+ 359   2          if(alarm[x]>=1)
+ 360   2            alarm[x]=alarm[x]-1;
+ 361   2          else
+ 362   2          {
+ 363   3            alarm[x]=5;
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 7   
+
+ 364   3            if(x!=7)
+ 365   3              reduceproca(x+2);
+ 366   3            else
+ 367   3              alarm[x]=1;
+ 368   3          }
+ 369   2        }
+ 370   1        
+ 371   1      }
+ 372          void keyscan()
+ 373          {   
+ 374   1        flag=0;
+ 375   1        value=0;
+ 376   1          if(k1==0)
+ 377   1        {   
+ 378   2            TR0=0;//²»ÔÚÏÔÊ¾µ±Ç°Ê±¼ä
+ 379   2            TR1=1;
+ 380   2            delay(1000);
+ 381   2          if(k1==0)
+ 382   2          {   
+ 383   3            while(!k1) ;
+ 384   3            delay(1000);
+ 385   3            led=~led;
+ 386   3              value++;
+ 387   3          }
+ 388   2          else
+ 389   2            return ;
+ 390   2          
+ 391   2          while(value!=7)
+ 392   2          {
+ 393   3            if(k1==0)
+ 394   3            {   
+ 395   4                delay(1000);
+ 396   4              if(k1==0)
+ 397   4              {
+ 398   5                while(!k1) ;
+ 399   5                led=~led;
+ 400   5                      value++;
+ 401   5                if(value==4)
+ 402   5                  flag=1;
+ 403   5              } 
+ 404   4              
+ 405   4            } 
+ 406   3            if(k2==0)
+ 407   3            {
+ 408   4              delay(1000);
+ 409   4              if(k2==0)
+ 410   4              {
+ 411   5                while(!k2) ;
+ 412   5                led=~led;
+ 413   5                jia();
+ 414   5              }
+ 415   4            }
+ 416   3            if(k3==0)
+ 417   3            {
+ 418   4              delay(1000);
+ 419   4              if(k3==0)
+ 420   4              {
+ 421   5                while(!k3) ;
+ 422   5                  led=~led;
+ 423   5                jian();
+ 424   5              }
+ 425   4            } 
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 8   
+
+ 426   3          }
+ 427   2          TR0=1;
+ 428   2          TR1=0;
+ 429   2          if(((alarm[6]+alarm[7]*10)*60+alarm[3]+alarm[4]*10)>((time[6]+time[7]*10)*60+time[3]+time[4]*10))//ÅÐ¶ÏÄ
+             -ÖÖÓÊ±¼äÊÇ·ñ´óÓÚµ±Ç°Ê±¼ä,
+ 430   2            alarmexist=1;
+ 431   2          else
+ 432   2            alarmexist=0;
+ 433   2          
+ 434   2          
+ 435   2        }
+ 436   1      }     
+ 437          void jia()
+ 438          {
+ 439   1        switch(value)
+ 440   1        {
+ 441   2          case 1:time[0]=time[0]+1;addproct(0);break;
+ 442   2          case 2:time[3]=time[3]+1;addproct(3);break;
+ 443   2          case 3:time[6]=time[6]+1;addproct(6);break;
+ 444   2          case 4:alarm[0]=alarm[0]+1;addproca(0);break;
+ 445   2          case 5:alarm[3]=alarm[3]+1;addproca(3);break;
+ 446   2          case 6:alarm[6]=alarm[6]+1;addproca(6);break;
+ 447   2          
+ 448   2       
+ 449   2        }
+ 450   1      }
+ 451          void jian()
+ 452          {
+ 453   1        switch(value)
+ 454   1        {
+ 455   2          case 1:reduceproct(0);break;
+ 456   2          case 2:reduceproct(3);break;
+ 457   2          case 3:reduceproct(6);break;
+ 458   2          case 4:reduceproca(0);break;
+ 459   2          case 5:reduceproca(3);break;
+ 460   2          case 6:reduceproca(6);break;
+ 461   2          
+ 462   2       
+ 463   2        }
+ 464   1        
+ 465   1      }
+ 466          void Timer0() interrupt 1//·Çµ÷ÕûÊ±£¬Ö´ÐÐµÄÖÐ¶Ï·þÎñ³ÌÐò
+ 467          {
+ 468   1        if(jishiState == 0 && daojishi == 0){
+ 469   2          TH0=0xfc;
+ 470   2          TL0=0x67;//¸³¶¨Ê±Æ÷³õÊ¼Öµ£¬¶¨Ê±1ms
+ 471   2          cnt++;
+ 472   2          if(1000==cnt)
+ 473   2          {   
+ 474   3            cnt=0;
+ 475   3            time[0]=time[0]+1;
+ 476   3            addproct(0);
+ 477   3          }
+ 478   2          P0=0X00;
+ 479   2          switch(i)
+ 480   2          { 
+ 481   3            case 0:lsa=0;lsb=0;lsc=0;P0=smgduan[time[0]];dian=(alarmexist==1)?1:0;i++;break;
+ 482   3            case 1:lsa=1;lsb=0;lsc=0;P0=smgduan[time[1]];i++;i++;break;
+ 483   3            case 3:lsa=1;lsb=1;lsc=0;P0=smgduan[time[3]];i++;break;
+ 484   3            case 4:lsa=0;lsb=0;lsc=1;P0=smgduan[time[4]];i++;i++;break;
+ 485   3            case 6:lsa=0;lsb=1;lsc=1;P0=smgduan[time[6]];i++;break;
+ 486   3            case 7:lsa=1;lsb=1;lsc=1;P0=smgduan[time[7]];i=0;break;
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 9   
+
+ 487   3          }
+ 488   2        
+ 489   2        }
+ 490   1        else if(jishiState == 0 && daojishi == 1){
+ 491   2          TH0=0xfc;
+ 492   2          TL0=0x67;//¸³¶¨Ê±Æ÷³õÊ¼Öµ£¬¶¨Ê±1ms
+ 493   2          cnt++;
+ 494   2          if(1000==cnt)
+ 495   2          {   
+ 496   3            cnt=0;
+ 497   3            if(ssec == 0 && sec == 0 && min == 0)
+ 498   3            {
+ 499   4              daojishi = 0;
+ 500   4              TR0 = 0;
+ 501   4            }else{
+ 502   4              
+ 503   4            if(ssec >= 1)
+ 504   4              ssec--;
+ 505   4            else if(sec >= 1){
+ 506   5              ssec = 59;
+ 507   5              sec--;
+ 508   5            }
+ 509   4            else if(min >= 1){
+ 510   5              ssec = 59;
+ 511   5              sec = 59;
+ 512   5              min--;
+ 513   5              }
+ 514   4            }
+ 515   3            datapros();
+ 516   3          }
+ 517   2          P0=0X00;
+ 518   2          switch(i)
+ 519   2          { 
+ 520   3            case 0:lsa=0;lsb=0;lsc=0;P0=jisuan[0];i++;break;
+ 521   3            case 1:lsa=1;lsb=0;lsc=0;P0=jisuan[1];i++;break;
+ 522   3            case 2:lsa=0;lsb=1;lsc=0;P0=0x40;i++;break;
+ 523   3            case 3:lsa=1;lsb=1;lsc=0;P0=jisuan[3];i++;break;
+ 524   3            case 4:lsa=0;lsb=0;lsc=1;P0=jisuan[4];i++;break;
+ 525   3            case 5:lsa=1;lsb=0;lsc=1;P0=0x40;i++;break;
+ 526   3            case 6:lsa=0;lsb=1;lsc=1;P0=jisuan[6];i++;break;
+ 527   3            case 7:lsa=1;lsb=1;lsc=1;P0=jisuan[7];i=0;break;
+ 528   3          }
+ 529   2        }
+ 530   1        else{
+ 531   2          TH0=0Xd8; //¸ø¶¨Ê±Æ÷¸³³õÖµ£¬¶¨Ê±10ms
+ 532   2          TL0=0Xf0;
+ 533   2          ssec++;
+ 534   2          if(ssec>=100)  //1s
+ 535   2          {
+ 536   3            ssec=0;
+ 537   3            sec++;
+ 538   3            if(sec>=60)
+ 539   3            {
+ 540   4              sec=0;
+ 541   4              min++;
+ 542   4              if(min>=60)
+ 543   4              {
+ 544   5                min=0;
+ 545   5              }
+ 546   4            } 
+ 547   3          } 
+ 548   2        }
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 10  
+
+ 549   1      }
+ 550          void Timer1() interrupt 3 //µ÷ÕûÊ±£¬Ö´ÐÐµÄÖÐ¶Ï·þÎñ³ÌÐò  £¬flag=0ÏÔÊ¾ÕýÔÚµ÷ÕûµÄtime£¬Îª1ÏÔÊ¾ÕýÔÚµ÷ÕûµÄalarm
+ 551          {
+ 552   1          TH1=0xfc;
+ 553   1          TL1=0x67;//¸³¶¨Ê±Æ÷³õÊ¼Öµ£¬¶¨Ê±1ms
+ 554   1          if(flag==0 && daojishi == 0)
+ 555   1            p=time;
+ 556   1          else
+ 557   1            p=alarm;
+ 558   1          P0=0X00;
+ 559   1          switch(j)
+ 560   1          { 
+ 561   2            case 0:lsa=0;lsb=0;lsc=0;P0=smgduan[p[0]];j++;break;
+ 562   2            case 1:lsa=1;lsb=0;lsc=0;P0=smgduan[p[1]];j++;j++;break;
+ 563   2            case 3:lsa=1;lsb=1;lsc=0;P0=smgduan[p[3]];j++;break;
+ 564   2            case 4:lsa=0;lsb=0;lsc=1;P0=smgduan[p[4]];j++;j++;break;
+ 565   2            case 6:lsa=0;lsb=1;lsc=1;P0=smgduan[p[6]];j++;break;
+ 566   2            case 7:lsa=1;lsb=1;lsc=1;P0=smgduan[p[7]];j=0;break;
+ 567   2          }
+ 568   1      }
+ 569          
+ 570          void DigDisplay()
+ 571          {
+ 572   1        u8 i;
+ 573   1        for(i=0;i<8;i++)
+ 574   1        {
+ 575   2          switch(i)  //Î»Ñ¡£¬Ñ¡ÔñµãÁÁµÄÊýÂë¹Ü£¬
+ 576   2          {
+ 577   3            case(0):
+ 578   3              lsa=0;lsb=0;lsc=0; break;//ÏÔÊ¾µÚ0Î»
+ 579   3            case(1):
+ 580   3              lsa=1;lsb=0;lsc=0; break;//ÏÔÊ¾µÚ1Î»
+ 581   3            case(2):
+ 582   3              lsa=0;lsb=1;lsc=0; break;//ÏÔÊ¾µÚ2Î»
+ 583   3            case(3):
+ 584   3              lsa=1;lsb=1;lsc=0; break;//ÏÔÊ¾µÚ3Î»
+ 585   3            case(4):
+ 586   3              lsa=0;lsb=0;lsc=1; break;//ÏÔÊ¾µÚ4Î»
+ 587   3            case(5):
+ 588   3              lsa=1;lsb=0;lsc=1; break;//ÏÔÊ¾µÚ5Î»
+ 589   3            case(6):
+ 590   3              lsa=0;lsb=1;lsc=1; break;//ÏÔÊ¾µÚ6Î»
+ 591   3            case(7):
+ 592   3              lsa=1;lsb=1;lsc=1; break;//ÏÔÊ¾µÚ7Î»  
+ 593   3          }
+ 594   2          P0=jisuan[i];//·¢ËÍ¶ÎÂë
+ 595   2          delay(100); //¼ä¸ôÒ»¶ÎÊ±¼äÉ¨Ãè  
+ 596   2          P0=0x00;//ÏûÒþ
+ 597   2        }
+ 598   1      }
+ 599          void datapros()
+ 600          {
+ 601   1        jisuan[0]=smgduan[ssec%10];
+ 602   1        jisuan[1]=smgduan[ssec/10];
+ 603   1        jisuan[2]=0x40; 
+ 604   1        jisuan[3]=smgduan[sec%10];
+ 605   1        jisuan[4]=smgduan[sec/10];
+ 606   1        jisuan[5]=0x40;
+ 607   1        jisuan[6]=smgduan[min%10];
+ 608   1        jisuan[7]=smgduan[min/10];
+ 609   1      }
+ 610          /*******************************************************************************
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 11  
+
+ 611          * º¯ Êý Ãû         : KeyDown
+ 612          * º¯Êý¹¦ÄÜ       : ¼ì²âÓÐ°´¼ü°´ÏÂ²¢¶ÁÈ¡¼üÖµ
+ 613          * Êä    Èë         : ÎÞ
+ 614          * Êä    ³ö         : ÎÞ
+ 615          *******************************************************************************/
+ 616          void KeyDown(void)
+ 617          {
+ 618   1        unsigned int a=0;
+ 619   1        GPIO_KEY=0x0f;
+ 620   1        if(GPIO_KEY!=0x0f)
+ 621   1        {
+ 622   2          Delay10ms();
+ 623   2          a++;  
+ 624   2          a=0;
+ 625   2          if(GPIO_KEY!=0x0f)
+ 626   2          {
+ 627   3            KeyState=1;//ÓÐ°´¼ü°´ÏÂ
+ 628   3            //²âÊÔÁÐ
+ 629   3            GPIO_KEY=0X0F;
+ 630   3      //      Delay10ms();
+ 631   3            switch(GPIO_KEY)
+ 632   3            {
+ 633   4              case(0X07): value=0;break;
+ 634   4              case(0X0b): value=1;break;
+ 635   4              case(0X0d): value=2;break;
+ 636   4              case(0X0e): value=3;break;
+ 637   4      //        default:  value=17; //¼ì²â³ö´í»Ø¸´17ÒâË¼ÊÇ°ÑÊýÂë¹ÜÈ«Ãðµô¡£
+ 638   4            }
+ 639   3            //²âÊÔÐÐ
+ 640   3            GPIO_KEY=0XF0;
+ 641   3            Delay10ms();
+ 642   3            switch(GPIO_KEY)
+ 643   3            {
+ 644   4              case(0X70): value=value;break;
+ 645   4              case(0Xb0): value=value+4;break;
+ 646   4              case(0Xd0): value=value+8;break;
+ 647   4              case(0Xe0): value=value+12;break;
+ 648   4      //        default:  value=17;
+ 649   4            }
+ 650   3            while((a<500)&&(GPIO_KEY!=0xf0))   //°´¼üËÉÊÖ¼ì²â
+ 651   3            {
+ 652   4              Delay10ms();
+ 653   4              a++;
+ 654   4            }
+ 655   3            a=0;
+ 656   3          }
+ 657   2        }
+ 658   1      }
+ 659          /*******************************************************************************
+ 660          * º¯ Êý Ãû         : Delay10ms
+ 661          * º¯Êý¹¦ÄÜ       : ÑÓÊ±º¯Êý£¬ÑÓÊ±10ms
+ 662          * Êä    Èë         : ÎÞ
+ 663          * Êä    ³ö         : ÎÞ
+ 664          *******************************************************************************/
+ 665          void Delay10ms(void)   //Îó²î 0us
+ 666          {
+ 667   1          unsigned char a,b,c;
+ 668   1          for(c=1;c>0;c--)
+ 669   1              for(b=38;b>0;b--)
+ 670   1                  for(a=130;a>0;a--);
+ 671   1      }
+ 672          u16 outputMS(){
+C51 COMPILER V9.59.0.0   CLOCK                                                             06/15/2019 15:56:14 PAGE 12  
+
+ 673   1        u16 num = 0;
+ 674   1        num += ssec;
+ 675   1        num += sec*100;
+ 676   1        num += min*10000;
+ 677   1        return num;
+ 678   1      }
+ 679          
+ 680          void outputSGM(u16 num){
+ 681   1        min = num/10000;
+ 682   1        sec = (num - min*10000)/100;
+ 683   1        ssec = num - min*10000 - sec*100;
+ 684   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   3430    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =    115      10
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
